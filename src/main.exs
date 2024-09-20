@@ -1,3 +1,5 @@
+import Bitwise
+
 defmodule Steglixir do
   @spec encrypt(String, String) :: :ok
   def encrypt(sourcePath, destinationPath)
@@ -12,7 +14,7 @@ defmodule Steglixir do
     end
 
     if File.dir?(destinationPath) do
-      IO.puts("Destination path is a folder.")
+      IO.puts("Destination path be a file, not a folder.")
       :error
     end
 
@@ -26,12 +28,19 @@ defmodule Steglixir do
     <<rgb::binary-size(3), _restOfUnencryptedFile::binary>> = unencryptedFile
     <<red::binary-size(1), green::binary-size(1), blue::binary-size(1)>> = rgb
     IO.inspect([red, green, blue])
-    red = red(& 1)
-    green = green(& 1)
-    blue = blue(& 1)
-    testFile = <<red, green, blue>>
-    IO.inspect([red, green, blue])
-    IO.inspect(testFile)
+
+    <<redFirstSevenBits::size(7), redLastBit::size(1)>> = red
+    IO.puts(redLastBit)
+    redChangedLastBit = redLastBit &&& 1
+    IO.puts(redChangedLastBit)
+
+    newRed = <<redFirstSevenBits::size(7), redChangedLastBit::size(1)>>
+    # green = green(& 1)
+    # blue = blue(& 1)
+    # testFile = <<red, green, blue>>
+    # IO.inspect([red, green, blue])
+    # IO.inspect(testFile)
+    IO.inspect(newRed)
   end
 
   def decrypt(sourcePath, destinationPath) do
