@@ -19,20 +19,68 @@ defmodule Steglixir do
       :error
     end
 
-    {status, unencryptedFile} = File.read(sourcePath)
+    unencryptedFile = File.read!(sourcePath)
 
-    if status != :ok do
-      IO.puts("Failed to read file. Check permissions.")
-      :error
-    end
+    binaryMessage = Integer.digits(:binary.first(message), 2)
 
-    [newRed, newGreen, newBlue, restOfFile] =
-      divideFileToPixelsAndEncryptMessage(unencryptedFile, "Msg")
+    [newRed, newGreen, newBlue, restOfFile, restOfBinaryMessage] =
+      divideFileToPixelsAndEncryptMessage(unencryptedFile, binaryMessage)
 
     IO.inspect([newRed, newGreen, newBlue])
-    encryptedFile = [newRed, newGreen, newBlue, restOfFile]
-    File.write(destinationPath, encryptedFile)
-    encryptedFile
+
+    tempEncryptedFile = [newRed, newGreen, newBlue, restOfFile]
+
+    finalEncryptedFile =
+      encryptUntilFinished(unencryptedFile, restOfBinaryMessage, tempEncryptedFile)
+
+    File.write(destinationPath, finalEncryptedFile)
+    finalEncryptedFile
+  end
+
+  defp encryptUntilFinished(unencryptedFile, preBinaryMessage, encryptedFile)
+       when Kernel.length(preBinaryMessage) == 0 do
+    if Kernel.length(preBinaryMessage) == 0 do
+      resultingFile = encryptedFile ++ unencryptedFile
+      resultingFile
+    end
+
+    # If message has less than three bits
+    if Kernel.length(preBinaryMessage) == 1 do
+      binaryMessage = preBinaryMessage ++ [0, 0]
+
+      [newRed, newGreen, newBlue, restOfFile, restOfBinaryMessage] =
+        divideFileToPixelsAndEncryptMessage(unencryptedFile, binaryMessage)
+
+      newEncryptedFile = [encryptedFile, newRed, newGreen, newBlue]
+      finalEncryptedFile = encryptUntilFinished(restOfFile, restOfBinaryMessage, newEncryptedFile)
+      finalEncryptedFile
+    else
+      if Kernel.length(preBinaryMessage) == 2 do
+        binaryMessage = [preBinaryMessage, 0]
+
+        [newRed, newGreen, newBlue, restOfFile, restOfBinaryMessage] =
+          divideFileToPixelsAndEncryptMessage(unencryptedFile, binaryMessage)
+
+        newEncryptedFile = [encryptedFile, newRed, newGreen, newBlue]
+
+        finalEncryptedFile =
+          encryptUntilFinished(restOfFile, restOfBinaryMessage, newEncryptedFile)
+
+        finalEncryptedFile
+      else
+        binaryMessage = preBinaryMessage
+
+        [newRed, newGreen, newBlue, restOfFile, restOfBinaryMessage] =
+          divideFileToPixelsAndEncryptMessage(unencryptedFile, binaryMessage)
+
+        newEncryptedFile = [encryptedFile, newRed, newGreen, newBlue]
+
+        finalEncryptedFile =
+          encryptUntilFinished(restOfFile, restOfBinaryMessage, newEncryptedFile)
+
+        finalEncryptedFile
+      end
+    end
   end
 
   def decrypt(sourcePath, destinationPath) do
@@ -41,21 +89,18 @@ defmodule Steglixir do
     :ok
   end
 
-  @spec(divideFileToPixelsAndEncryptMessage(Binary, String) :: Binary, Binary, Binary, Binary)
-  defp divideFileToPixelsAndEncryptMessage(unencryptedFile, message) do
-    binaryMessage = :binary.first(message)
+  @spec(divideFileToPixelsAndEncryptMessage(Binary, Integer) :: Binary, Binary, Binary, Binary)
+  defp divideFileToPixelsAndEncryptMessage(unencryptedFile, binaryMessage) do
     <<rgb::binary-size(3), restOfUnencryptedFile::binary>> = unencryptedFile
     <<red::binary-size(1), green::binary-size(1), blue::binary-size(1)>> = rgb
     IO.inspect([red, green, blue])
 
-    # <<binaryMessage::utf8>> = message
-
-    [firstBit, secondBit, thirdBit | _restOfIntMessageFirst] = Integer.digits(binaryMessage, 2)
+    [firstBit, secondBit, thirdBit | restOfBinaryMessage] = binaryMessage
 
     newRed = embedMessageIntoPixelColorChannel(firstBit, red)
     newGreen = embedMessageIntoPixelColorChannel(secondBit, green)
     newBlue = embedMessageIntoPixelColorChannel(thirdBit, blue)
-    [newRed, newGreen, newBlue, restOfUnencryptedFile]
+    [newRed, newGreen, newBlue, restOfUnencryptedFile, restOfBinaryMessage]
   end
 
   @spec embedMessageIntoPixelColorChannel(Binary, Binary) :: Binary
