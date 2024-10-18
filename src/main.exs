@@ -21,72 +21,35 @@ defmodule Steglixir do
 
     unencryptedFile = File.read!(sourcePath)
 
-    binaryMessage = Integer.digits(:binary.first(message), 2)
+    IO.puts("Message before encoding:")
+    IO.inspect(message)
+
+    char_codes = String.to_charlist(message)
+
+    bin_list =
+      Enum.map(char_codes, fn char ->
+        char
+        |> IO.inspect()
+        |> Integer.digits(2)
+      end)
+
+    binaryMessage = List.flatten(bin_list)
+
+    IO.puts("Message after converting to binary:")
+    IO.inspect(binaryMessage)
 
     [newRed, newGreen, newBlue, restOfFile, restOfBinaryMessage] =
       divideFileToPixelsAndEncryptMessage(unencryptedFile, binaryMessage)
 
     IO.inspect([newRed, newGreen, newBlue])
 
-    tempEncryptedFile = [newRed, newGreen, newBlue, restOfFile]
+    tempEncryptedFile = newRed <> newGreen <> newBlue
 
     finalEncryptedFile =
-      encryptUntilFinished(unencryptedFile, restOfBinaryMessage, tempEncryptedFile)
+      encryptUntilFinished(restOfFile, restOfBinaryMessage, tempEncryptedFile)
 
     File.write(destinationPath, finalEncryptedFile)
     finalEncryptedFile
-  end
-
-  defp encryptUntilFinished(unencryptedFile, preBinaryMessage, encryptedFile)
-       when Kernel.length(preBinaryMessage) == 0 do
-    if Kernel.length(preBinaryMessage) == 0 do
-      resultingFile = encryptedFile ++ unencryptedFile
-      resultingFile
-    end
-
-    # If message has less than three bits
-    if Kernel.length(preBinaryMessage) == 1 do
-      binaryMessage = preBinaryMessage ++ [0, 0]
-
-      [newRed, newGreen, newBlue, restOfFile, restOfBinaryMessage] =
-        divideFileToPixelsAndEncryptMessage(unencryptedFile, binaryMessage)
-
-      newEncryptedFile = [encryptedFile, newRed, newGreen, newBlue]
-      finalEncryptedFile = encryptUntilFinished(restOfFile, restOfBinaryMessage, newEncryptedFile)
-      finalEncryptedFile
-    else
-      if Kernel.length(preBinaryMessage) == 2 do
-        binaryMessage = [preBinaryMessage, 0]
-
-        [newRed, newGreen, newBlue, restOfFile, restOfBinaryMessage] =
-          divideFileToPixelsAndEncryptMessage(unencryptedFile, binaryMessage)
-
-        newEncryptedFile = [encryptedFile, newRed, newGreen, newBlue]
-
-        finalEncryptedFile =
-          encryptUntilFinished(restOfFile, restOfBinaryMessage, newEncryptedFile)
-
-        finalEncryptedFile
-      else
-        binaryMessage = preBinaryMessage
-
-        [newRed, newGreen, newBlue, restOfFile, restOfBinaryMessage] =
-          divideFileToPixelsAndEncryptMessage(unencryptedFile, binaryMessage)
-
-        newEncryptedFile = [encryptedFile, newRed, newGreen, newBlue]
-
-        finalEncryptedFile =
-          encryptUntilFinished(restOfFile, restOfBinaryMessage, newEncryptedFile)
-
-        finalEncryptedFile
-      end
-    end
-  end
-
-  def decrypt(sourcePath, destinationPath) do
-    _newPath = sourcePath
-    _newPp = destinationPath
-    :ok
   end
 
   @spec(divideFileToPixelsAndEncryptMessage(Binary, Integer) :: Binary, Binary, Binary, Binary)
@@ -94,6 +57,8 @@ defmodule Steglixir do
     <<rgb::binary-size(3), restOfUnencryptedFile::binary>> = unencryptedFile
     <<red::binary-size(1), green::binary-size(1), blue::binary-size(1)>> = rgb
     IO.inspect([red, green, blue])
+    IO.puts("Binary message to encode:")
+    IO.inspect(binaryMessage)
 
     [firstBit, secondBit, thirdBit | restOfBinaryMessage] = binaryMessage
 
@@ -113,13 +78,62 @@ defmodule Steglixir do
     <<colorChannelFirstSevenBits::size(7), colorChannelChangedLastBit::size(1)>>
   end
 
-  @spec readMessage(String) :: String
-  def readMessage(message) do
-    IO.puts(message)
+  @spec encryptUntilFinished(Bitwise, List, Bitwise) :: Bitwise
+  defp encryptUntilFinished(unencryptedFile, preBinaryMessage, encryptedFile)
+       when Kernel.length(preBinaryMessage) == 0 do
+    resultingFile = encryptedFile <> unencryptedFile
+    resultingFile
+  end
+
+  defp encryptUntilFinished(unencryptedFile, preBinaryMessage, encryptedFile)
+       when Kernel.length(preBinaryMessage) == 1 do
+    binaryMessage = preBinaryMessage ++ [0, 0]
+
+    [newRed, newGreen, newBlue, restOfFile, restOfBinaryMessage] =
+      divideFileToPixelsAndEncryptMessage(unencryptedFile, binaryMessage)
+
+    newEncryptedFile = encryptedFile <> newRed <> newGreen <> newBlue
+    finalEncryptedFile = encryptUntilFinished(restOfFile, restOfBinaryMessage, newEncryptedFile)
+    finalEncryptedFile
+  end
+
+  defp encryptUntilFinished(unencryptedFile, preBinaryMessage, encryptedFile)
+       when Kernel.length(preBinaryMessage) == 2 do
+    binaryMessage = [preBinaryMessage, 0]
+
+    [newRed, newGreen, newBlue, restOfFile, restOfBinaryMessage] =
+      divideFileToPixelsAndEncryptMessage(unencryptedFile, binaryMessage)
+
+    newEncryptedFile = encryptedFile <> newRed <> newGreen <> newBlue
+
+    finalEncryptedFile =
+      encryptUntilFinished(restOfFile, restOfBinaryMessage, newEncryptedFile)
+
+    finalEncryptedFile
+  end
+
+  defp encryptUntilFinished(unencryptedFile, preBinaryMessage, encryptedFile) do
+    IO.puts("Binary length not 0, 1 or 2, returning")
+    binaryMessage = preBinaryMessage
+
+    [newRed, newGreen, newBlue, restOfFile, restOfBinaryMessage] =
+      divideFileToPixelsAndEncryptMessage(unencryptedFile, binaryMessage)
+
+    newEncryptedFile = encryptedFile <> newRed <> newGreen <> newBlue
+
+    finalEncryptedFile =
+      encryptUntilFinished(restOfFile, restOfBinaryMessage, newEncryptedFile)
+
+    finalEncryptedFile
+  end
+
+  # Return message from file
+  def decrypt(sourcePath) do
+    _newPath = sourcePath
+    :ok
   end
 end
 
 Steglixir.encrypt("data/test.jpg", "data/encryptedTest.jpg", "Hello, World!")
-Steglixir.readMessage("data/encryptedTest.jpg")
-Steglixir.decrypt("data/encryptedTest.jpg", "data/unencryptedTest.jpg")
+Steglixir.decrypt("data/encryptedTest.jpg")
 IO.puts("data/unencryptedTest.jpg" == "data/test.jpg")
