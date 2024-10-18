@@ -24,16 +24,7 @@ defmodule Steglixir do
     IO.puts("Message before encoding:")
     IO.inspect(message)
 
-    char_codes = String.to_charlist(message)
-
-    bin_list =
-      Enum.map(char_codes, fn char ->
-        char
-        |> IO.inspect()
-        |> Integer.digits(2)
-      end)
-
-    binaryMessage = List.flatten(bin_list)
+    binaryMessage = convertMessageToBinary(message)
 
     IO.puts("Message after converting to binary:")
     IO.inspect(binaryMessage)
@@ -68,6 +59,20 @@ defmodule Steglixir do
     [newRed, newGreen, newBlue, restOfUnencryptedFile, restOfBinaryMessage]
   end
 
+  defp convertMessageToBinary(message) do
+    char_codes = String.to_charlist(message)
+
+    bin_list =
+      Enum.map(char_codes, fn char ->
+        char
+        |> IO.inspect()
+        |> Integer.digits(2)
+      end)
+
+    binaryMessage = List.flatten(bin_list)
+    binaryMessage
+  end
+
   @spec embedMessageIntoPixelColorChannel(Binary, Binary) :: Binary
   defp embedMessageIntoPixelColorChannel(message, colorChannel) do
     <<colorChannelFirstSevenBits::size(7), colorChannelLastBit::size(1)>> = colorChannel
@@ -81,8 +86,18 @@ defmodule Steglixir do
   @spec encryptUntilFinished(Bitwise, List, Bitwise) :: Bitwise
   defp encryptUntilFinished(unencryptedFile, preBinaryMessage, encryptedFile)
        when Kernel.length(preBinaryMessage) == 0 do
-    resultingFile = encryptedFile <> unencryptedFile
-    resultingFile
+    message = "\\0"
+    binaryMessage = convertMessageToBinary(message)
+
+    [newRed, newGreen, newBlue, restOfFile, restOfBinaryMessage] =
+      divideFileToPixelsAndEncryptMessage(unencryptedFile, binaryMessage)
+
+    newEncryptedFile = encryptedFile <> newRed <> newGreen <> newBlue
+
+    finalEncryptedFile =
+      encryptUntilFinished(restOfFile, restOfBinaryMessage, newEncryptedFile, true)
+
+    finalEncryptedFile
   end
 
   defp encryptUntilFinished(unencryptedFile, preBinaryMessage, encryptedFile)
@@ -123,6 +138,28 @@ defmodule Steglixir do
 
     finalEncryptedFile =
       encryptUntilFinished(restOfFile, restOfBinaryMessage, newEncryptedFile)
+
+    finalEncryptedFile
+  end
+
+  @spec encryptUntilFinished(Bitwise, List, Bitwise, boolean) :: Bitwise
+  defp encryptUntilFinished(unencryptedFile, _preBinaryMessage, encryptedFile, _endingSymbol)
+       when Kernel.length(_preBinaryMessage) == 0 and _endingSymbol do
+    finalEncryptedFile = encryptedFile ++ unencryptedFile
+    finalEncryptedFile
+  end
+
+  defp encryptUntilFinished(unencryptedFile, preBinaryMessage, encryptedFile, endingSymbol)
+       when endingSymbol do
+    binaryMessage = preBinaryMessage
+
+    [newRed, newGreen, newBlue, restOfFile, restOfBinaryMessage] =
+      divideFileToPixelsAndEncryptMessage(unencryptedFile, binaryMessage)
+
+    newEncryptedFile = encryptedFile <> newRed <> newGreen <> newBlue
+
+    finalEncryptedFile =
+      encryptUntilFinished(restOfFile, restOfBinaryMessage, newEncryptedFile, true)
 
     finalEncryptedFile
   end
