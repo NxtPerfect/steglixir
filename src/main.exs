@@ -44,7 +44,8 @@ defmodule Steglixir do
   end
 
   @spec(divideFileToPixelsAndEncryptMessage(Binary, Integer) :: Binary, Binary, Binary, Binary)
-  defp divideFileToPixelsAndEncryptMessage(unencryptedFile, binaryMessage) when Kernel.length(binaryMessage) >= 3 do
+  defp divideFileToPixelsAndEncryptMessage(unencryptedFile, binaryMessage)
+       when Kernel.length(binaryMessage) >= 3 do
     <<rgb::binary-size(3), restOfUnencryptedFile::binary>> = unencryptedFile
     <<red::binary-size(1), green::binary-size(1), blue::binary-size(1)>> = rgb
     # IO.inspect([red, green, blue], label: "RGB")
@@ -65,7 +66,7 @@ defmodule Steglixir do
     bin_list =
       Enum.map(char_codes, fn char ->
         char
-        |> IO.inspect(label: "Char to bin")
+        # |> IO.inspect(label: "Char to bin")
         |> Integer.digits(2)
         |> isSevenBitsInLength()
       end)
@@ -74,7 +75,7 @@ defmodule Steglixir do
     # IO.inspect(binaryMessage, label: "Encoded binary message")
     binaryMessage
   end
-  
+
   defp isSevenBitsInLength(charList) when Kernel.length(charList) == 7 do
     charList
   end
@@ -86,15 +87,18 @@ defmodule Steglixir do
       # |> IO.inspect(label: "Number after padding")
       |> String.graphemes()
       # |> IO.inspect(label: "Graphemes")
-      |> Enum.map(fn char -> char
+      |> Enum.map(fn char ->
+        char
         |> Integer.parse(2)
         |> Kernel.elem(0)
       end)
-      # |> IO.inspect(label: "Parsing")
+
+    # |> IO.inspect(label: "Parsing")
     correctLengthList
   end
 
-  defp divideFileToPixelsAndEncryptMessage(unencryptedFile, binaryMessage) when Kernel.length(binaryMessage) == 2 do
+  defp divideFileToPixelsAndEncryptMessage(unencryptedFile, binaryMessage)
+       when Kernel.length(binaryMessage) == 2 do
     <<rgb::binary-size(3), restOfUnencryptedFile::binary>> = unencryptedFile
     <<red::binary-size(1), green::binary-size(1), blue::binary-size(1)>> = rgb
     # IO.inspect([red, green, blue])
@@ -110,7 +114,8 @@ defmodule Steglixir do
     [newRed, newGreen, newBlue, restOfUnencryptedFile, restOfBinaryMessage]
   end
 
-  defp divideFileToPixelsAndEncryptMessage(unencryptedFile, binaryMessage) when Kernel.length(binaryMessage) == 1 do
+  defp divideFileToPixelsAndEncryptMessage(unencryptedFile, binaryMessage)
+       when Kernel.length(binaryMessage) == 1 do
     <<rgb::binary-size(3), restOfUnencryptedFile::binary>> = unencryptedFile
     <<red::binary-size(1), green::binary-size(1), blue::binary-size(1)>> = rgb
     # IO.inspect([red, green, blue])
@@ -130,9 +135,9 @@ defmodule Steglixir do
   @spec embedMessageIntoPixelColorChannel(Binary, Binary) :: Binary
   defp embedMessageIntoPixelColorChannel(message, colorChannel) do
     <<colorChannelFirstSevenBits::size(7), colorChannelLastBit::size(1)>> = colorChannel
-    IO.puts(colorChannelLastBit)
+    # IO.puts(colorChannelLastBit)
     colorChannelChangedLastBit = colorChannelLastBit &&& message
-    IO.puts(colorChannelChangedLastBit)
+    # IO.puts(colorChannelChangedLastBit)
 
     <<colorChannelFirstSevenBits::size(7), colorChannelChangedLastBit::size(1)>>
   end
@@ -223,24 +228,55 @@ defmodule Steglixir do
 
   @spec decrypt(String) :: :ok
   def decrypt(sourcePath) do
-    # Open file
     encryptedFile = File.read!(sourcePath)
-    # Get 7 bits
-    <<message::binary-size(7), restOfEncryptedFile::binary>> = encryptedFile
-    IO.inspect(message)
-    # get last bit of each channel
-    <<firstColorChannel::binary-size(1), restOfMessage::binary>> = message
-    <<leastSignificantBit::1, _::6>> = firstColorChannel |> :binary.bin_to_list |> Enum.reverse() |> :binary.list_to_bin
-    IO.inspect(leastSignificantBit)
-    # convert these into ascii
-    # Issue: how do i know when a letter ends?
+    <<firstCharColorCanals::binary-size(7), _restOfEncryptedFile::binary>> = encryptedFile
+    IO.inspect(<<decryptUntilFinished(firstCharColorCanals, [])>>, label: "Decrypted message")
     :ok
   end
 
-  @spec getNbitsOfFile(Binary, Integer) :: {Binary, Binary}
-  defp getNbitsOfFile(file, length) do
-    <<bits::binary-size(length), restOfFile::binary>> = file
-    {bits, restOfFile}
+  @spec decryptUntilFinished(String, String) :: String
+  defp decryptUntilFinished(fileContent, message) when byte_size(fileContent) > 7 do
+    listOfDecryptedMessage = decrypt(fileContent, [])
+    <<_::7, restOfFileContent::binary>> = fileContent
+    IO.inspect(decryptUntilFinished(restOfFileContent, [], listOfDecryptedMessage))
+  end
+
+  defp decryptUntilFinished(fileContent, message) when byte_size(fileContent) == 7 do
+    IO.puts("Only 7 channels left, returning list of string.")
+    listOfDecryptedMessage = decrypt(fileContent, [])
+    listOfDecryptedMessage
+  end
+
+  defp decryptUntilFinished(fileContent, message, listOfDecryptedMessage) do
+    newListOfDecryptedMessage =
+      [decrypt(fileContent, []) | listOfDecryptedMessage] |> Enum.reverse()
+
+    newListOfDecryptedMessage
+  end
+
+  @spec decrypt(Binary, List) :: String
+  defp decrypt(fileContent, listOfBits) when length(listOfBits) != 7 do
+    <<colorChanel::binary-size(1), restOfFile::binary>> = fileContent
+    reversedColorChanel = reverseColorChannel(colorChanel)
+    <<leastSignificantBit::size(1), _::size(7)>> = reversedColorChanel
+    newListOfBits = [leastSignificantBit | listOfBits]
+    decrypt(restOfFile, newListOfBits)
+  end
+
+  @spec decrypt(Binary, List) :: String
+  defp decrypt(_, listOfBits) when length(listOfBits) == 7 do
+    IO.puts("Forming a list from bits")
+
+    listOfBits
+    |> Enum.reverse()
+    |> Integer.undigits(2)
+  end
+
+  defp reverseColorChannel(colorChannel) do
+    colorChannel
+    |> :binary.bin_to_list()
+    |> Enum.reverse()
+    |> :binary.list_to_bin()
   end
 end
 
