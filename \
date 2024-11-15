@@ -1,3 +1,5 @@
+import Bitwise
+
 defmodule Steglixir do
   @spec encrypt(String, String, String) :: :ok
   def encrypt(sourcePath, destinationPath, message)
@@ -247,10 +249,8 @@ defmodule Steglixir do
 
   defp decryptUntilFinished(fileContent, message, listOfDecryptedMessage) do
     newListOfDecryptedMessage =
-      [listOfDecryptedMessage | decrypt(fileContent, message)]
-
-    # [decrypt(fileContent, message) | listOfDecryptedMessage]
-    # |> Enum.reverse()
+      [decrypt(fileContent, message) | listOfDecryptedMessage]
+      |> Enum.reverse()
 
     newListOfDecryptedMessage
   end
