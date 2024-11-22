@@ -224,6 +224,54 @@ defmodule Steglixir do
     finalEncryptedFile
   end
 
+  @spec decryptUntilFinished(String, List) :: String
+  defp decryptUntilFinished(fileContent, messageChars) when byte_size(fileContent) > 7 do
+    IO.write("Decrypting message above 7 bytes ")
+    IO.puts(byte_size(fileContent))
+    <<firstSeven::binary-size(7), _::binary>> = fileContent
+    [listOfDecryptedMessage, restOfFileContent] = decrypt(firstSeven, messageChars)
+    IO.inspect(decryptUntilFinished(restOfFileContent, messageChars, listOfDecryptedMessage))
+  end
+
+  @spec decryptUntilFinished(String, List) :: List
+  defp decryptUntilFinished(fileContent, messageChars) when byte_size(fileContent) == 7 do
+    IO.puts("Only 7 channels left, returning list of string.")
+    listOfDecryptedMessage = decrypt(fileContent, messageChars)
+    listOfDecryptedMessage
+  end
+
+  @spec decryptUntilFinished(String, List, List) :: List
+  defp decryptUntilFinished(fileContent, messageChars, listOfDecryptedMessage)
+       when byte_size(fileContent) <= 7 do
+    IO.puts("final decrypt")
+
+    newListOfDecryptedMessage =
+      [listOfDecryptedMessage | decrypt(fileContent, messageChars)]
+
+    newListOfDecryptedMessage
+  end
+
+  # Convert the list i got into list
+  # if it's '\' then go with new function
+  # that will return message if next one is '0'
+  # else keep going
+  @spec decryptUntilFinished(String, List, List) :: List
+  defp decryptUntilFinished(fileContent, messageChars, listOfDecryptedMessage)
+       when byte_size(fileContent) > 7 do
+    IO.puts("Decrypt until finished more than 7")
+    IO.puts(byte_size(fileContent))
+    [sevenDecryptedBits | restOfFile] = decrypt(fileContent, messageChars)
+    newChar = sevenDecryptedBits |> Enum.join() |> String.to_integer(2)
+    IO.puts(newChar)
+
+    newListOfDecryptedMessage =
+      [listOfDecryptedMessage | sevenDecryptedBits]
+
+    decryptUntilFinished(restOfFile, messageChars, newListOfDecryptedMessage)
+
+    newListOfDecryptedMessage
+  end
+
   @spec decrypt(String) :: :ok
   def decrypt(sourcePath) do
     encryptedFile = File.read!(sourcePath)
@@ -232,39 +280,22 @@ defmodule Steglixir do
     :ok
   end
 
-  @spec decryptUntilFinished(String, List) :: String
-  defp decryptUntilFinished(fileContent, message) when byte_size(fileContent) > 7 do
-    <<firstSeven::binary-size(7), restOfFileContent::binary>> = fileContent
-    listOfDecryptedMessage = decrypt(firstSeven, message)
-    IO.inspect(decryptUntilFinished(restOfFileContent, message, listOfDecryptedMessage))
+  @spec(decrypt(Binary, List) :: List, Binary)
+  defp decrypt(fileContent, listOfBits) when length(listOfBits) == 0 do
+    [listOfBits, fileContent]
   end
 
-  defp decryptUntilFinished(fileContent, message) when byte_size(fileContent) == 7 do
-    IO.puts("Only 7 channels left, returning list of string.")
-    listOfDecryptedMessage = decrypt(fileContent, message)
-    listOfDecryptedMessage
-  end
-
-  defp decryptUntilFinished(fileContent, message, listOfDecryptedMessage) do
-    newListOfDecryptedMessage =
-      [listOfDecryptedMessage | decrypt(fileContent, message)]
-
-    # [decrypt(fileContent, message) | listOfDecryptedMessage]
-    # |> Enum.reverse()
-
-    newListOfDecryptedMessage
-  end
-
-  @spec decrypt(Binary, List) :: String
+  @spec(decrypt(Binary, List) :: List, Binary)
   defp decrypt(fileContent, listOfBits) when length(listOfBits) != 7 do
     <<colorChanel::binary-size(1), restOfFile::binary>> = fileContent
     reversedColorChanel = reverseColorChannel(colorChanel)
     <<leastSignificantBit::size(1), _::size(7)>> = reversedColorChanel
     newListOfBits = [leastSignificantBit | listOfBits]
     decrypt(restOfFile, newListOfBits)
+    [newListOfBits, restOfFile]
   end
 
-  @spec decrypt(Binary, List) :: String
+  @spec decrypt(Binary, List) :: Integer
   defp decrypt(_, listOfBits) when length(listOfBits) == 7 do
     IO.puts("Forming a list from bits")
     IO.inspect(listOfBits)
